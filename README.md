@@ -101,6 +101,39 @@ shell commands, reset, or load states mid-run. `ready: true` enables execution;
 it does not assert the captured scene is correct. Use `--dry-run` to review the
 schedule without starting the core or creating a capture directory.
 
+## Generate routes to other stages
+
+```sh
+python3 stage_routes.py --stage 3 5 7 --out-dir captures/stage-recipes
+python3 stage_routes.py --all --out-dir captures/all-stage-recipes
+./run_recipe.sh captures/stage-recipes/stage-05.json --rom /path/to/sssv.z64 --timeout 180
+```
+
+The generator reuses the calibrated cold-boot/menu sequence, enters the required
+built-in region unlock button codes, and searches the unlocked selector ring for
+the fewest Left/Right presses. Stage IDs are 1-based: 1 Smashing Start,
+3 Honeymoon Lagoon, 5 The Engine Room, 6 Fat Bear Mountain, 7 Rocky Hard Place.
+The selector starts at stage 1. `--all-unlocked` enters all six unlock codes;
+otherwise Europe and the target region are enabled. These are controller cheats,
+not GameShark memory writes. Each run uses the harness's isolated saves/settings.
+
+Default recipes capture only the mission brief and initial spawn. Add
+`--diagnostic` for a selector screenshot. Earlier calibration captures become
+equivalent neutral waits, preserving the bootstrap input schedule. Conservative
+intro waits remain: shortening them previously sent inputs during cutscenes.
+Outputs are never overwritten.
+
+Generated recipes carry `source_derived_not_game_verified` route metadata.
+`ready: true` permits running them; it does not verify their target scene.
+The generated stage-05 recipe was cold-booted and visually checked on 2026-10-29:
+the brief identified The Engine Room and the spawn showed the player Racing Fox.
+This verifies that scene/actor route, not a geometry comparison or every recipe.
+Other regions, selector wraparound and
+special stages need in-game calibration. Use the mission brief to verify the
+stage and the spawn capture to verify the actor. Static animal placements or
+starting-species metadata can choose a target stage before launching the emulator;
+coordinates alone do not establish a walkable route or current live positions.
+
 ## Evidence and save states
 
 Runs contain a plan with ROM/state hashes, an emulator log, PNGs, and result/summary
@@ -126,7 +159,7 @@ Captures, logs, states, local inputs, and emulator settings stay private.
 ## Development and license
 
 ```sh
-python3 -m unittest -v test_harness
+python3 -m unittest -v test_harness test_stage_routes
 bash -n capture_rom.sh run_recipe.sh
 ```
 
