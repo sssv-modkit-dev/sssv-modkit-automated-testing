@@ -1,0 +1,369 @@
+{
+  "version": 1,
+  "ready": true,
+  "cold_boot_only": true,
+  "name": "Cold boot to Fat Bear Mountain initial spawn",
+  "notes": "Cold-boot route to the initial mouse spawn in Fat Bear Mountain, with intermediate checkpoints. Conservative timings; verify the result for each ROM and backend. Does not navigate to a bear.",
+  "steps": [
+    {
+      "action": "wait",
+      "frames": 6000
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 120
+    },
+    {
+      "action": "capture",
+      "label": "s0_bank_before_unlock"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_UP"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_DOWN"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "L"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "Z"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_DOWN"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_UP"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "Z"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_DOWN"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "capture",
+      "label": "s0_bank_after_unlock"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 180
+    },
+    {
+      "action": "capture",
+      "label": "s0_after_bank_confirm_1"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 240
+    },
+    {
+      "action": "capture",
+      "label": "s1_after_bank_select"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s1_stage_right_1"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s1_stage_right_2"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s1_stage_right_3"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s1_stage_right_4"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s1_stage_right_5"
+    },
+    {
+      "action": "wait",
+      "frames": 6000
+    },
+    {
+      "action": "capture",
+      "label": "s2_mission_brief"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "B"
+      ],
+      "frames": 3,
+      "release_frames": 180
+    },
+    {
+      "action": "capture",
+      "label": "s2_after_brief_b"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 180
+    },
+    {
+      "action": "capture",
+      "label": "s2_after_brief_start"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s3_pause_menu"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DOWN"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DOWN"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DOWN"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "capture",
+      "label": "s3_exit_zone_selected"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "A"
+      ],
+      "frames": 3,
+      "release_frames": 240
+    },
+    {
+      "action": "capture",
+      "label": "s3_after_exit_zone"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 20
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "A"
+      ],
+      "frames": 3,
+      "release_frames": 300
+    },
+    {
+      "action": "capture",
+      "label": "s4_stage_menu"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s4_stage_right_1"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s4_stage_right_2"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s4_stage_right_3"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s4_stage_right_4"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "DPAD_RIGHT"
+      ],
+      "frames": 3,
+      "release_frames": 30
+    },
+    {
+      "action": "capture",
+      "label": "s4_stage_right_5"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "A"
+      ],
+      "frames": 3,
+      "release_frames": 240
+    },
+    {
+      "action": "capture",
+      "label": "s5_bear_mission_brief"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 300
+    },
+    {
+      "action": "capture",
+      "label": "s5_bear_initial_spawn"
+    },
+    {
+      "action": "save_state",
+      "label": "fat_bear_mountain_initial_spawn"
+    }
+  ]
+}

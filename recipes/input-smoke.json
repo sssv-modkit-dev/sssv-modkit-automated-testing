@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "ready": true,
+  "steps": [
+    {
+      "action": "wait",
+      "frames": 10
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 6,
+      "release_frames": 5
+    },
+    {
+      "action": "capture",
+      "label": "input_probe"
+    }
+  ]
+}

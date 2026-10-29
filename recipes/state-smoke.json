@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "ready": true,
+  "name": "Save and reload smoke test only",
+  "steps": [
+    {
+      "action": "wait",
+      "frames": 60
+    },
+    {
+      "action": "capture",
+      "label": "boot"
+    },
+    {
+      "action": "save_state",
+      "label": "boot_state"
+    },
+    {
+      "action": "wait",
+      "frames": 10
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "ready": true,
+  "name": "Observe cold boot and Start responses",
+  "notes": "Calibration only; no assumption that a stage is reached. No state loading.",
+  "steps": [
+    {
+      "action": "wait",
+      "frames": 6000
+    },
+    {
+      "action": "capture",
+      "label": "boot_6000"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 120
+    },
+    {
+      "action": "capture",
+      "label": "after_start_1"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 120
+    },
+    {
+      "action": "capture",
+      "label": "after_start_2"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 120
+    },
+    {
+      "action": "capture",
+      "label": "after_start_3"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 120
+    },
+    {
+      "action": "capture",
+      "label": "after_start_4"
+    },
+    {
+      "action": "press",
+      "buttons": [
+        "START"
+      ],
+      "frames": 3,
+      "release_frames": 120
+    },
+    {
+      "action": "capture",
+      "label": "after_start_5"
+    }
+  ]
+}
