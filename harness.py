@@ -11,7 +11,6 @@ import json
 import os
 from pathlib import Path
 import re
-import shutil
 import struct
 import subprocess
 import sys
@@ -114,6 +113,7 @@ class Core:
             'CoreStartup':[C.c_int,C.c_char_p,C.c_char_p,C.c_void_p,self.debug_type,C.c_void_p,self.state_type],
             'CoreDoCommand':[C.c_int,C.c_int,C.c_void_p],
             'CoreAttachPlugin':[C.c_int,C.c_void_p], 'CoreDetachPlugin':[C.c_int], 'CoreShutdown':[],
+            'ConfigSaveFile':[],
             'ConfigOpenSection':[C.c_char_p,C.POINTER(C.c_void_p)],
             'ConfigSetParameter':[C.c_void_p,C.c_char_p,C.c_int,C.c_void_p]}.items():
             fn=getattr(self.lib,name); fn.argtypes=types; fn.restype=C.c_int
@@ -155,7 +155,8 @@ class Core:
         buf=(C.c_ubyte*(w.value*h.value*3))()
         self.video.ReadScreen2(buf,C.byref(w),C.byref(h),0)
         data=bytes(buf); path=self.run/(name+'.png'); png(path,w.value,h.value,data)
-        self.captures.append({'path':str(path),'frame':self.frame,'all_black':not any(data),'width':w.value,'height':h.value})
+        self.captures.append({'path':str(path),'frame':self.frame,'all_black':not any(data),'width':w.value,'height':h.value,
+            'rgb_sha1':hashlib.sha1(data).hexdigest(),'png_sha1':digest(path)})
     def on_frame(self,index):
         try:
             if not self.loaded: return
@@ -180,15 +181,16 @@ class Core:
             self.error=str(e); self.lib.CoreDoCommand(6,0,None)
     def execute(self):
         config=self.run/'config'; config.mkdir()
-        source=Path.home()/'.config/mupen64plus/mupen64plus.cfg'
-        if source.is_file(): shutil.copyfile(source,config/'mupen64plus.cfg')
         debug,state,frame=self.debug_type(self.debug),self.state_type(self.state_changed),self.frame_type(self.on_frame)
         self.callbacks=[debug,state,frame]
         self.check(self.lib.CoreStartup(0x020001,str(config).encode(),b'/usr/share/games/mupen64plus',None,debug,None,state),'CoreStartup')
         opened=False
         try:
             (self.run/'saves').mkdir()
-            for k,v in {'ScreenshotPath':str(self.run),'SaveStatePath':str(self.run),'SaveSRAMPath':str(self.run/'saves'),'OnScreenDisplay':False,'RandomizeInterrupt':False}.items(): self.set('Core',k,v)
+            # A fresh configuration prevents personal renderer settings/hotkeys from
+            # changing the recipe. The GB camera backend is unrelated to ReadScreen2.
+            for k,v in {'ScreenshotPath':str(self.run),'SaveStatePath':str(self.run),'SaveSRAMPath':str(self.run/'saves'),'OnScreenDisplay':False,'RandomizeInterrupt':False,'GbCameraVideoCaptureBackend1':'dummy'}.items(): self.set('Core',k,v)
+            for k,v in {'Fullscreen':False,'ScreenWidth':640,'ScreenHeight':480,'VerticalSync':False}.items(): self.set('Video-General',k,v)
             for k,v in {'mode':0,'device':-1,'name':'Keyboard','plugged':True,'plugin':1,'mouse':False}.items(): self.set('Input-SDL-Control1',k,v)
             for i in range(2,5):
                 self.set('Input-SDL-Control%d'%i,'mode',0); self.set('Input-SDL-Control%d'%i,'plugged',False)
@@ -206,10 +208,12 @@ class Core:
                     self.input=plugin; plugin.GetKeys.argtypes=[C.c_int,C.POINTER(C.c_uint32)]; plugin.GetKeys.restype=None
                 if kind==2:
                     self.video=plugin; plugin.ReadScreen2.argtypes=[C.c_void_p,C.POINTER(C.c_int),C.POINTER(C.c_int),C.c_int]; plugin.ReadScreen2.restype=None
+            self.check(self.lib.ConfigSaveFile(),'save isolated configuration')
             self.command(15,0,C.cast(frame,C.c_void_p)); self.command(5)
             if self.error: raise RuntimeError(self.error)
             if self.frame<self.plan['end_frame']: raise RuntimeError('emulator stopped before recipe completed')
-            return {'status':'capture_complete','semantic_pass':None,'frames':self.frame,'state_loaded':self.loaded if self.plan.get('state') else None,'captures':self.captures,'core_errors':self.core_errors,'review_required':bool(self.core_errors or any(c['all_black'] for c in self.captures)),'saved_states':self.saves,'events_executed':self.events}
+            valid=bool(self.captures) and not self.core_errors and not any(c['all_black'] for c in self.captures)
+            return {'status':'capture_complete' if valid else 'capture_invalid','capture_pass':valid,'semantic_pass':None,'frames':self.frame,'state_loaded':self.loaded if self.plan.get('state') else None,'captures':self.captures,'core_errors':self.core_errors,'review_required':not valid,'saved_states':self.saves,'events_executed':self.events}
         finally:
             for kind,plugin in reversed(self.plugins): self.lib.CoreDetachPlugin(kind); plugin.PluginShutdown()
             if opened: self.lib.CoreDoCommand(2,0,None)
@@ -259,8 +263,10 @@ def main(argv=None):
             except subprocess.TimeoutExpired: code=124
         rp=run/'result.json'; result=json.loads(rp.read_text()) if rp.exists() else {'status':'failed','error':'timeout' if code==124 else 'worker exited without result'}
         result.update({'exit_code':code,'elapsed_seconds':round(time.monotonic()-started,3),'plan':str(planpath),'log':str(run/'emulator.log')})
-        if code or result['status']!='capture_complete': result['status']='failed'
-        if result['status']=='capture_complete':
+        if not ((code==0 and result['status']=='capture_complete') or
+                (code==1 and result['status']=='capture_invalid')):
+            result['status']='failed'
+        if result['status'] in ('capture_complete','capture_invalid'):
             for saved in result.get('saved_states',[]):
                 Path(saved+'.json').write_text(json.dumps({'rom_sha1':plan['rom_sha1'],'rom':rom,'state_sha1':digest(saved),'origin':'cold_boot' if not state else 'loaded_state','source_state':state},indent=2))
         (run/'summary.json').write_text(json.dumps(result,indent=2)); print(json.dumps(result,indent=2))

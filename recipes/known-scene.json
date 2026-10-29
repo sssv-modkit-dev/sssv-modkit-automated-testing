@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "ready": true,
+  "cold_boot_only": true,
+  "name": "Known scene: opening copyright screen",
+  "notes": "US 1.0 baseline, Rice at 640x480. Both checkpoints should show the yellow copyright text over the purple star field. No input or save state. This checks capture reliability, not gameplay or patched geometry. Inspect images before treating a new backend as calibrated.",
+  "steps": [
+    {"action": "wait", "frames": 119},
+    {"action": "capture", "label": "copyright_120"},
+    {"action": "wait", "frames": 58},
+    {"action": "capture", "label": "copyright_180"}
+  ]
+}

@@ -52,6 +52,63 @@ class HarnessTests(unittest.TestCase):
         for i in range(4): c.on_frame(i)
         self.assertEqual([v[:2] for v in c.lib.calls],[(13,40),(14,40),(6,0)])
 
+    def test_readback_black_and_hashes(self):
+        class Video:
+            def __init__(self, rgb): self.rgb=rgb
+            def ReadScreen2(self, dest, width, height, front):
+                self.front=front
+                width._obj.value=1; height._obj.value=1
+                if dest is not None: dest[:]=self.rgb
+        with tempfile.TemporaryDirectory() as tmp:
+            c=object.__new__(h.Core); c.run=Path(tmp); c.frame=120; c.captures=[]
+            for name,rgb,black in [('blank',b'\0\0\0',True),('visible',b'\x80\x40\x20',False)]:
+                c.video=Video(rgb); c.capture(name)
+                record=c.captures[-1]
+                self.assertEqual(record['all_black'],black)
+                self.assertEqual(record['rgb_sha1'],h.hashlib.sha1(rgb).hexdigest())
+                self.assertEqual(record['png_sha1'],h.digest(record['path']))
+                self.assertEqual(c.video.front,0)
+
+    def test_invalid_capture_retains_evidence_and_failure_exit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); rom=root/'test.z64'
+            rom.write_bytes(bytes.fromhex('80371240')+bytes(60))
+            def worker(args, **kwargs):
+                plan=json.loads(Path(args[-1]).read_text())
+                Path(plan['run_dir'],'result.json').write_text(json.dumps({
+                    'status':'capture_invalid','capture_pass':False,
+                    'semantic_pass':None,'review_required':True,
+                    'captures':[{'frame':1,'all_black':True}]}))
+                return mock.Mock(returncode=1)
+            with mock.patch.dict(h.os.environ,{'SSSV_TEST_DIR':tmp}), mock.patch.object(h.subprocess,'run',side_effect=worker), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(h.main(['capture',str(rom),'1f']),1)
+            summary=json.loads(next(root.rglob('summary.json')).read_text())
+            self.assertEqual(summary['status'],'capture_invalid')
+            self.assertFalse(summary['capture_pass'])
+            self.assertIsNone(summary['semantic_pass'])
+            self.assertTrue(summary['captures'][0]['all_black'])
+
+    def test_known_scene_schedule_and_cold_boot(self):
+        recipe=json.loads((h.ROOT/'recipes/known-scene.json').read_text())
+        events,end=h.compile_recipe(recipe)
+        self.assertTrue(recipe['cold_boot_only'])
+        self.assertEqual([(e['frame'],e['action']) for e in events],[(120,'capture'),(180,'capture')])
+        self.assertGreater(end,180)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            h.main(['recipe',str(h.ROOT/'recipes/known-scene.json'),'--state','some.st','--dry-run'])
+
+    def test_worker_crash_overrides_completed_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); rom=root/'test.z64'
+            rom.write_bytes(bytes.fromhex('80371240')+bytes(60))
+            def worker(args, **kwargs):
+                plan=json.loads(Path(args[-1]).read_text())
+                Path(plan['run_dir'],'result.json').write_text(json.dumps({'status':'capture_complete'}))
+                return mock.Mock(returncode=139)
+            with mock.patch.dict(h.os.environ,{'SSSV_TEST_DIR':tmp}), mock.patch.object(h.subprocess,'run',side_effect=worker), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(h.main(['capture',str(rom),'120f']),1)
+            self.assertEqual(json.loads(next(root.rglob('summary.json')).read_text())['status'],'failed')
+
     def test_wait_for_disk_save(self):
         class Fake:
             def __init__(self): self.calls=[]
@@ -63,7 +120,7 @@ class HarnessTests(unittest.TestCase):
         c.on_frame(0)
         self.assertEqual(c.lib.calls,[])
         c.save_written.add('test.st'); c.on_frame(1)
-        self.assertEqual(c.saves,['/private/test.st'])
+        self.assertEqual(c.saves,[str(Path('/private/test.st'))])
         self.assertEqual(c.lib.calls,[(6,0,None)])
 
     def test_missing_rom_has_clear_error(self):

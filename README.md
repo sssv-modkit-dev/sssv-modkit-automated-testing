@@ -40,13 +40,38 @@ Explicit paths work without the environment variable:
 
 Outputs go to unique `captures/DATE/TIME-ID/` directories. Set `SSSV_TEST_DIR`
 to another parent directory to keep evidence elsewhere. Each run has its own
-emulator configuration and game-save directory. Existing preferences are copied
-as a starting point; personal saves and settings are not overwritten.
+emulator configuration and game-save directory. Each run uses fresh defaults,
+640x480 windowed video, no vertical sync, and no Game Boy camera device.
+Personal saves and settings are not read or overwritten.
+
+## Repeatable known-scene capture
+
+From Linux/WSL, run with your own US 1.0 ROM:
+
+```sh
+./run_recipe.sh recipes/known-scene.json --rom /path/to/sssv.z64 --timeout 30
+```
+
+This cold-boots without input and captures rendered frames 120 and 180. Both
+images should show yellow copyright text over a purple star field. The second
+checkpoint is dimmer as the scene fades. Inspect both images when calibrating a
+new ROM/backend. Repeat the command to compare each checkpoint's `rgb_sha1` in
+`summary.json`; compare the same frame across runs, not frame 120 against 180.
+Hashes are evidence of repeatability on the same setup, not portable scene
+recognition. `semantic_pass` remains null.
+
+The stock US 1.0 ROM was verified with three independent cold boots on the
+development Rice/Mesa backend: both checkpoints were nonblack and byte-identical
+across runs, with no core errors. The first rendered frame is still black during
+boot. Capturing at `1f` intentionally fails the capture check; waiting for a
+known checkpoint avoids that startup blank. Frames are never silently retried
+or moved to a later scene. See [capture validation](docs/CAPTURE-VALIDATION.md).
 
 ## Recipes and frame counts
 
 | Recipe | Purpose |
 |---|---|
+| `recipes/known-scene.json` | Quick cold-boot copyright scene at frames 120 and 180 |
 | `recipes/boot-calibration.json` | Observe cold boot and Start responses |
 | `recipes/fat-bear-mountain.json` | Cold boot to that stage's initial mouse spawn |
 | `recipes/input-smoke.json` | Short button press/release capture |
@@ -81,7 +106,12 @@ schedule without starting the core or creating a capture directory.
 Runs contain a plan with ROM/state hashes, an emulator log, PNGs, and result/summary
 JSON. A completed run reports `semantic_pass: null`: inspect the screenshots or
 perform a separate RAM check to establish the intended scene and geometry.
-Core errors and black captures set `review_required`; timeouts fail the run.
+`capture_pass: true` means PNGs were produced with nonblack pixels and no core
+errors; it does not establish scene correctness. Core errors, missing captures,
+or any all-black capture produce `status: capture_invalid`, `capture_pass: false`,
+`review_required: true`, and exit code 1. Evidence is retained. Timeouts and
+execution errors produce `status: failed`. Captures include raw RGB and PNG SHA1
+hashes. Dark or incorrect scenes can still require visual review.
 
 Use `--state /path/to/matching.st` with capture or recipe commands when needed.
 Recipes marked `cold_boot_only` reject it. Native states have a `.st.json`
