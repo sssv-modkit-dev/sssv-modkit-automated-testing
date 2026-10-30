@@ -14,7 +14,9 @@ and does not require the mod builder or its generated indexes.
   SDL input, HLE RSP, and core data under `/usr/share/games/mupen64plus`.
   Plugin libraries are loaded from `/usr/lib/x86_64-linux-gnu/mupen64plus`.
   The development installation uses core/plugin packages from the 2.5.9 series.
-  Audio is not attached. Other platforms or backend layouts need adaptation.
+  Audio is not attached. For other layouts set `M64P_CORE_LIB`, `M64P_PLUGIN_DIR`,
+  `M64P_DATA_DIR` or `M64P_VIDEO_PLUGIN` (default `video-rice`); other video
+  plugins are uncalibrated.
 
 Install emulator components separately; this repository does not bundle them.
 Synthetic tests and dry-runs do not load emulator libraries.
