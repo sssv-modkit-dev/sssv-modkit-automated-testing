@@ -134,6 +134,14 @@ stage and the spawn capture to verify the actor. Static animal placements or
 starting-species metadata can choose a target stage before launching the emulator;
 coordinates alone do not establish a walkable route or current live positions.
 
+## Reusable inspection sessions
+
+Use `inspection.py` to bind a stage, ROM build, recipes, and checkpoints into one
+private session. The first run cold-boots and saves a checkpoint; subsequent runs
+replay that checkpoint. `zoom`, `orbit`, and `movement` presets reuse the same
+setup. See [the inspection workflow](docs/INSPECTION.md) for commands, adopting an
+existing cold boot, explicit debug states, provenance, and validation limits.
+
 ## Evidence and save states
 
 Runs contain a plan with ROM/state hashes, an emulator log, PNGs, and result/summary
@@ -159,7 +167,7 @@ Captures, logs, states, local inputs, and emulator settings stay private.
 ## Development and license
 
 ```sh
-python3 -m unittest -v test_harness test_stage_routes
+python3 -m unittest -v test_harness test_stage_routes test_inspection
 bash -n capture_rom.sh run_recipe.sh
 ```
 
