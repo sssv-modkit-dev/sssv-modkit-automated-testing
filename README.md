@@ -21,7 +21,9 @@ The backend currently expects x86-64 Ubuntu with these components:
 - Core data in `/usr/share/games/mupen64plus`
 
 Development uses the 2.5.9 core/plugin packages. Install them separately. Audio
-is not attached, and other platforms or library layouts need changes to the backend.
+is not attached. For other library layouts, set `M64P_CORE_LIB`, `M64P_PLUGIN_DIR`,
+`M64P_DATA_DIR` or `M64P_VIDEO_PLUGIN` (default `video-rice`); other video plugins
+are uncalibrated.
 Tests and dry runs work without emulator libraries.
 
 ## First capture

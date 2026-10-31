@@ -21,6 +21,24 @@ import zlib
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_ROM = os.environ.get('SSSV_ROM')
+# Debian/Ubuntu package layout; override for other installs.
+CORE_LIB = os.environ.get('M64P_CORE_LIB', 'libmupen64plus.so.2')
+PLUGIN_DIR = Path(os.environ.get('M64P_PLUGIN_DIR', '/usr/lib/x86_64-linux-gnu/mupen64plus'))
+DATA_DIR = os.environ.get('M64P_DATA_DIR', '/usr/share/games/mupen64plus')
+VIDEO_PLUGIN = os.environ.get('M64P_VIDEO_PLUGIN', 'video-rice')
+
+# Mupen64Plus core API values (m64p_types.h): m64p_command, m64p_core_param,
+# m64p_emu_state, m64p_plugin_type and m64p_msg_level.
+CMD_ROM_OPEN, CMD_ROM_CLOSE, CMD_EXECUTE, CMD_STOP, CMD_RESUME = 1, 2, 5, 6, 8
+CMD_STATE_LOAD, CMD_STATE_SAVE, CMD_KEYDOWN, CMD_KEYUP = 10, 11, 13, 14
+CMD_SET_FRAME_CALLBACK, CMD_CORE_STATE_SET = 15, 17
+PARAM_EMU_STATE, PARAM_SPEED_LIMITER = 1, 5
+PARAM_STATE_LOADCOMPLETE, PARAM_STATE_SAVECOMPLETE = 10, 11
+EMU_RUNNING = 2
+SAVESTATE_M64P = 1
+PLUGIN_RSP, PLUGIN_GFX, PLUGIN_INPUT = 1, 2, 4
+MSG_ERROR = 1
+CORE_API_VERSION = 0x020001
 # Core 2.5.9 SDL2 key injection uses SDL scancodes, while config key(...)
 # strings retain SDL1 key IDs. Keep these two domains separate.
 BUTTONS = {'START':40, 'A':225, 'B':224, 'Z':29, 'L':27, 'R':6,
@@ -102,7 +120,7 @@ def png(path,w,h,rgb):
 class Core:
     def __init__(self,plan):
         self.plan=plan; self.run=Path(plan['run_dir'])
-        self.lib=C.CDLL('libmupen64plus.so.2',mode=C.RTLD_GLOBAL)
+        self.lib=C.CDLL(CORE_LIB,mode=C.RTLD_GLOBAL)
         self.plugins=[]; self.events=[]; self.captures=[]; self.saves=[]; self.ptrs=[]; self.save_written=set()
         self.core_errors=[]; self.message_counts={}; self.frame=0; self.error=None; self.pending_save=None
         self.loaded=not bool(plan.get('state')); self.load_requested=False
@@ -129,25 +147,25 @@ class Core:
     def debug(self,context,level,message):
         text=message.decode(errors='replace')
         if text.startswith('Saved state to: '): self.save_written.add(text.split(': ',1)[1])
-        if level==1 and text not in self.core_errors: self.core_errors.append(text)
+        if level==MSG_ERROR and text not in self.core_errors: self.core_errors.append(text)
         count=self.message_counts.get(text,0)+1; self.message_counts[text]=count
         if count<=3: print('M64[%s] %s'%(level,text),flush=True)
     def state_changed(self,context,param,value):
         try:
-            if param==1 and value==2:
-                speed=C.c_int(0); self.command(17,5,C.byref(speed))
+            if param==PARAM_EMU_STATE and value==EMU_RUNNING:
+                limiter=C.c_int(0); self.command(CMD_CORE_STATE_SET,PARAM_SPEED_LIMITER,C.byref(limiter))
                 if self.plan.get('state') and not self.load_requested:
                     self.load_requested=True; ptr=C.create_string_buffer(self.plan['state'].encode()); self.ptrs.append(ptr)
-                    self.command(10,0,ptr)
-            elif param==10:
+                    self.command(CMD_STATE_LOAD,0,ptr)
+            elif param==PARAM_STATE_LOADCOMPLETE:
                 if not value: raise RuntimeError('core rejected state load')
-                self.loaded=True; self.command(8)
-            elif param==11:
+                self.loaded=True; self.command(CMD_RESUME)
+            elif param==PARAM_STATE_SAVECOMPLETE:
                 if not value: raise RuntimeError('core failed state save')
                 # In core 2.5.9 this reports queue acceptance, not gzip completion.
                 # debug() observes the post-gzclose completion message instead.
         except Exception as e:
-            self.error=str(e); self.lib.CoreDoCommand(6,0,None)
+            self.error=str(e); self.lib.CoreDoCommand(CMD_STOP,0,None)
     def capture(self,name):
         w,h=C.c_int(),C.c_int()
         self.video.ReadScreen2(None,C.byref(w),C.byref(h),0)
@@ -168,22 +186,22 @@ class Core:
                 print('RECIPE '+json.dumps(e),flush=True); self.events.append(e)
                 op=e['action']
                 if op in ('down','up'):
-                    for b in e['buttons']: self.command(13 if op=='down' else 14,BUTTONS[b])
+                    for b in e['buttons']: self.command(CMD_KEYDOWN if op=='down' else CMD_KEYUP,BUTTONS[b])
                     if hasattr(self,'input'):
                         word=C.c_uint32(); self.input.GetKeys(0,C.byref(word)); e['controller_word']=word.value; print('CONTROLLER '+hex(word.value),flush=True)
                 elif op=='capture': self.capture(e['label'])
                 elif op=='save_state':
                     if self.pending_save: raise RuntimeError('previous state save not completed')
                     self.pending_save=self.run/(e['label']+'.st')
-                    ptr=C.create_string_buffer(str(self.pending_save).encode()); self.ptrs.append(ptr); self.command(11,1,ptr)
-            if self.frame>=self.plan['end_frame'] and not self.pending_save: self.command(6)
+                    ptr=C.create_string_buffer(str(self.pending_save).encode()); self.ptrs.append(ptr); self.command(CMD_STATE_SAVE,SAVESTATE_M64P,ptr)
+            if self.frame>=self.plan['end_frame'] and not self.pending_save: self.command(CMD_STOP)
         except Exception as e:
-            self.error=str(e); self.lib.CoreDoCommand(6,0,None)
+            self.error=str(e); self.lib.CoreDoCommand(CMD_STOP,0,None)
     def execute(self):
         config=self.run/'config'; config.mkdir()
         debug,state,frame=self.debug_type(self.debug),self.state_type(self.state_changed),self.frame_type(self.on_frame)
         self.callbacks=[debug,state,frame]
-        self.check(self.lib.CoreStartup(0x020001,str(config).encode(),b'/usr/share/games/mupen64plus',None,debug,None,state),'CoreStartup')
+        self.check(self.lib.CoreStartup(CORE_API_VERSION,str(config).encode(),DATA_DIR.encode(),None,debug,None,state),'CoreStartup')
         opened=False
         try:
             (self.run/'saves').mkdir()
@@ -195,28 +213,27 @@ class Core:
             for i in range(2,5):
                 self.set('Input-SDL-Control%d'%i,'mode',0); self.set('Input-SDL-Control%d'%i,'plugged',False)
             for k,v in {'Start':'key(13)','A Button':'key(304)','B Button':'key(306)','Z Trig':'key(122)','L Trig':'key(120)','R Trig':'key(99)','DPad U':'key(119)','DPad D':'key(115)','DPad L':'key(97)','DPad R':'key(100)','C Button U':'key(105)','C Button D':'key(107)','C Button L':'key(106)','C Button R':'key(108)','X Axis':'key(276,275)','Y Axis':'key(273,274)'}.items(): self.set('Input-SDL-Control1',k,v)
-            raw=Path(self.plan['rom']).read_bytes(); self.rom=C.create_string_buffer(raw); self.command(1,len(raw),self.rom); opened=True
-            directory=Path('/usr/lib/x86_64-linux-gnu/mupen64plus')
-            for kind,name in [(2,'video-rice'),(4,'input-sdl'),(1,'rsp-hle')]:
-                plugin=C.CDLL(str(directory/('mupen64plus-'+name+'.so')))
+            raw=Path(self.plan['rom']).read_bytes(); self.rom=C.create_string_buffer(raw); self.command(CMD_ROM_OPEN,len(raw),self.rom); opened=True
+            for kind,name in [(PLUGIN_GFX,VIDEO_PLUGIN),(PLUGIN_INPUT,'input-sdl'),(PLUGIN_RSP,'rsp-hle')]:
+                plugin=C.CDLL(str(PLUGIN_DIR/('mupen64plus-'+name+'.so')))
                 plugin.PluginStartup.argtypes=[C.c_void_p,C.c_void_p,self.debug_type]; plugin.PluginStartup.restype=C.c_int
                 plugin.PluginShutdown.argtypes=[]
                 self.check(plugin.PluginStartup(self.lib._handle,None,debug),'PluginStartup '+name)
                 self.check(self.lib.CoreAttachPlugin(kind,plugin._handle),'CoreAttachPlugin '+name)
                 self.plugins.append((kind,plugin))
-                if kind==4:
+                if kind==PLUGIN_INPUT:
                     self.input=plugin; plugin.GetKeys.argtypes=[C.c_int,C.POINTER(C.c_uint32)]; plugin.GetKeys.restype=None
-                if kind==2:
+                if kind==PLUGIN_GFX:
                     self.video=plugin; plugin.ReadScreen2.argtypes=[C.c_void_p,C.POINTER(C.c_int),C.POINTER(C.c_int),C.c_int]; plugin.ReadScreen2.restype=None
             self.check(self.lib.ConfigSaveFile(),'save isolated configuration')
-            self.command(15,0,C.cast(frame,C.c_void_p)); self.command(5)
+            self.command(CMD_SET_FRAME_CALLBACK,0,C.cast(frame,C.c_void_p)); self.command(CMD_EXECUTE)
             if self.error: raise RuntimeError(self.error)
             if self.frame<self.plan['end_frame']: raise RuntimeError('emulator stopped before recipe completed')
             valid=bool(self.captures) and not self.core_errors and not any(c['all_black'] for c in self.captures)
             return {'status':'capture_complete' if valid else 'capture_invalid','capture_pass':valid,'semantic_pass':None,'frames':self.frame,'state_loaded':self.loaded if self.plan.get('state') else None,'captures':self.captures,'core_errors':self.core_errors,'review_required':not valid,'saved_states':self.saves,'events_executed':self.events}
         finally:
             for kind,plugin in reversed(self.plugins): self.lib.CoreDetachPlugin(kind); plugin.PluginShutdown()
-            if opened: self.lib.CoreDoCommand(2,0,None)
+            if opened: self.lib.CoreDoCommand(CMD_ROM_CLOSE,0,None)
             self.lib.CoreShutdown()
 
 def worker(path):
