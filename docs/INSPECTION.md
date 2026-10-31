@@ -1,14 +1,14 @@
-# Reusable inspection workflow
+# Inspection sessions
 
-An inspection session binds one exact ROM build to a target stage, generated
-recipes, a cold-boot checkpoint, optional debug checkpoint, and run history.
-It uses existing harness recipes and state provenance; it does not patch ROMs,
-change native states, or require the modkit or an animal table.
+An inspection session keeps the recipes, checkpoints, and run history for one
+ROM build and stage together. Cold-boot the build once, check the scene, then
+replay a saved checkpoint for camera and movement checks. Sessions use the
+harness on its own; they do not edit ROMs or states.
 
 ## Prepare once, then replay
 
-Run on the Linux/WSL backend supported by the harness. Keep the session under
-`captures/` so local paths, hashes, states and evidence remain ignored.
+Run these commands on the harness's Linux/WSL backend. Keep sessions under
+`captures/`, where local paths, hashes, states, and results are ignored by Git.
 
 ```sh
 python3 inspection.py prepare --session captures/fox-v1 --stage 5 --rom /path/to/build.z64
@@ -19,24 +19,24 @@ python3 inspection.py run --session captures/fox-v1 --preset zoom
 python3 inspection.py run --session captures/fox-v1 --preset movement
 ```
 
-The first `run` executes only the cold-boot bootstrap, saves `inspection_spawn.st`,
-and registers it only after a successful run with matching provenance. The next
-`run` uses that checkpoint and the requested preset. `--dry-run` shows the command
+The first `run` cold-boots the game and saves `inspection_spawn.st`. It registers
+the checkpoint after the run succeeds and its provenance checks pass. Later
+runs use that checkpoint and the requested preset. `--dry-run` shows the command
 without launching an emulator; `--timeout` sets the harness timeout in seconds.
-Run one inspection at a time; input/display access and session updates are not
-coordinated across concurrent emulator processes.
+Run one inspection at a time. Concurrent emulators can interfere with input,
+the display, and session updates.
 
 The session directory contains `session.json`, four generated recipe JSON files,
 and per-run captures, plans, logs, result/summary JSON and state sidecars. History
-records the source cold boot and elapsed replay times. A manual review note is
-stored separately and never changes `semantic_pass` into an automated pass.
+records the source cold boot and elapsed replay times. Manual review notes are
+stored separately; they do not change `semantic_pass`.
 
-The ROM SHA1 and recipe contents are pinned. Replacing a ROM or changing a recipe
-causes a refusal: create a new session. The registered checkpoint SHA1 is pinned
-in addition to checking its ROM/state sidecar. A missing, modified or mismatched
-registered checkpoint causes a refusal rather than a silent fresh boot. Nothing
-rewrites state identity headers. New geometry needs a new cold boot and checkpoint.
-Changing emulator backends can also invalidate native-state compatibility.
+The session records the ROM SHA1, recipe contents, and registered checkpoint
+SHA1. It refuses to run if any have changed, if the checkpoint is missing, or
+if the ROM/state sidecar does not match. Create a new session for a changed ROM
+or recipe. New geometry needs a new cold boot and checkpoint. State identity
+headers are never rewritten, and a different emulator backend may be unable
+to load the state.
 
 ## Reuse a cold boot already performed
 
@@ -44,11 +44,11 @@ Changing emulator backends can also invalidate native-state compatibility.
 python3 inspection.py adopt --session captures/fox-v1 --run /path/to/cold-boot-run --label my_spawn
 ```
 
-Adoption checks that the run completed without core errors, started without a
-state, used this exact ROM, declares this target stage in its recipe route, and
-saved the named state. The native provenance sidecar must match the current ROM
-and state and record a cold-boot origin. Adoption does not infer scene correctness
-from a nonblack screenshot. Only sessions without a primary checkpoint can adopt.
+Adoption requires a run that completed without core errors, started without a
+state, used the session's ROM, declared the target stage in its recipe route,
+and saved the named state. The native provenance sidecar must match the current
+ROM and state and record a cold-boot origin. You still need to check the scene.
+Only sessions without a primary checkpoint can adopt a run.
 
 Keep paths in the same environment as the runner. Windows paths recorded in a
 Windows session are not translated into Linux paths automatically; prepare and
@@ -60,9 +60,10 @@ adopt from WSL when running the WSL emulator.
 - `orbit`: zoom, then four separate C-left taps with settling time and captures.
 - `movement`: forward, left, forward, capturing after each input.
 
-Camera controls are mode-limited. Holding C buttons is not equivalent to repeated
-taps; an `orbit_attempt` label records input, not a verified rotation. The Engine
-Room Racing Fox checkpoint tested during development uses camera mode 28, which
+Camera controls depend on the game's camera mode. Holding a C button differs
+from tapping it repeatedly. An `orbit_attempt` label records the input sent;
+check the captures to see whether the camera rotated. The Engine Room Racing
+Fox checkpoint tested during development uses camera mode 28, which
 does not orbit with the ordinary C-left/right path. Scenery visibility and camera
 obstruction are separate concerns.
 
@@ -75,9 +76,10 @@ python3 inspection.py run --session captures/fox-v1 --preset orbit --debug
 
 The debug sidecar must have matching ROM/state hashes, an
 `origin` of `derived_camera_debug_state`, the primary checkpoint's SHA1 as
-`source_state_sha1`, and a nonempty edit manifest. These checks verify declared
-provenance, not that arbitrary binary edits are limited to a camera. Debug replay
-is labelled in run history, is opt-in, and is restricted to the orbit preset.
+`source_state_sha1`, and a nonempty edit manifest. These checks verify the
+provenance fields; they cannot establish that the binary edits affect only the
+camera. Debug replay requires `--debug`, is
+labelled in run history, and works only with the orbit preset.
 It cannot replace the primary checkpoint or serve as a normal movement check.
 
 Experimental scenery-hidden ROMs are separate builds and therefore separate
@@ -85,7 +87,7 @@ sessions. Keep their patching outside the harness. Hiding world-cell drawing
 does not necessarily hide objects or disable collision or camera obstruction.
 Inspect final movement/contact in the normal visible level.
 
-## What to automate and what to inspect
+## Review the captures
 
 Choose the actor and stage from existing metadata before running the emulator.
 Use the generated shortest selector route rather than searching by screenshots.
@@ -95,8 +97,8 @@ movement views for attachments, visible-level contact for collision fit.
 
 Capture success means images exist, contain nonblack pixels, and report no core
 errors. It does not establish the stage, actor, geometry, shading, orbit or collision.
-Use screenshots or independently scoped RAM checks for those claims. A fast
-checkpoint is an iteration tool, not evidence that a different ROM loaded correctly.
+Check those through screenshots or RAM checks appropriate to the ROM and state.
+Reusing a checkpoint does not validate a different ROM build.
 
 ## Checks
 
@@ -104,7 +106,7 @@ checkpoint is an iteration tool, not evidence that a different ROM loaded correc
 python3 -m unittest -v test_harness test_stage_routes test_inspection
 ```
 
-Synthetic session tests cover cold-boot/replay selection, changed ROM/recipe/state
-refusal, failed or mismatched run adoption, missing provenance, separate opt-in
-debug replay, evidence recording, and preservation of the session on harness failure.
-Actual run observations belong in the private session evidence, not test fixtures.
+Synthetic tests cover boot/replay selection, rejection of changed inputs,
+adoption checks, missing provenance, debug replay, recording results, and
+preserving the session after a harness failure. Keep observations from real
+runs in the private session files.
