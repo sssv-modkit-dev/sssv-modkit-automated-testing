@@ -18,6 +18,7 @@ import tempfile
 import time
 import zipfile
 import zlib
+import semantic
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_ROM = os.environ.get('SSSV_ROM')
@@ -243,13 +244,35 @@ def worker(path):
     Path(plan['run_dir'],'result.json').write_text(json.dumps(result,indent=2))
     return 0 if result['status']=='capture_complete' else 1
 
+def load_references(args,events):
+    specs={}
+    if args.reference_file: specs.update(json.loads(Path(args.reference_file).read_text()))
+    for item in args.reference:
+        name,sep,path=item.partition('=')
+        if not sep: raise ValueError('--reference needs LABEL=PNG')
+        specs[name]=path
+    overrides={k:v for k,v in (('mode',args.ref_mode),('tolerance',args.ref_tolerance),('hash_tolerance',args.ref_hash_tolerance),('roi',args.ref_roi)) if v is not None}
+    labels={e['label'] for e in events if e['action']=='capture'}
+    refs={}
+    for name,spec in specs.items():
+        if name not in labels: raise ValueError('reference label %s is not a capture in this run' % name)
+        spec=dict(path=spec) if isinstance(spec,str) else dict(spec)
+        for k,v in overrides.items(): spec.setdefault(k,v)
+        refs[name]=semantic.load_reference(name,spec)
+    return refs
+
 def main(argv=None):
     argv=list(sys.argv[1:] if argv is None else argv)
     if argv[:1]==['--worker']: return worker(argv[1])
     parser=argparse.ArgumentParser(description=__doc__); sub=parser.add_subparsers(dest='mode',required=True)
     cap=sub.add_parser('capture',help='compatible ROM/duration/timeout capture'); cap.add_argument('positionals',nargs='*'); cap.add_argument('--state')
     rec=sub.add_parser('recipe',help='cold boot and execute JSON recipe'); rec.add_argument('recipe'); rec.add_argument('--rom',default=DEFAULT_ROM); rec.add_argument('--timeout',type=int,default=180); rec.add_argument('--state')
-    for p in (cap,rec): p.add_argument('--dry-run',action='store_true')
+    for p in (cap,rec):
+        p.add_argument('--dry-run',action='store_true')
+        p.add_argument('--reference',action='append',default=[],metavar='LABEL=PNG',help='private reference image for a capture label (repeatable; capture mode label is "capture")')
+        p.add_argument('--reference-file',metavar='JSON',help='JSON {label: path | {path,mode,tolerance,hash_tolerance,roi}}; keep it outside the repo')
+        p.add_argument('--ref-mode',choices=semantic.MODES); p.add_argument('--ref-tolerance',type=float); p.add_argument('--ref-hash-tolerance',type=int)
+        p.add_argument('--ref-roi',type=float,nargs=4,metavar=('X0','Y0','X1','Y1'),help='compare only this fraction box of the frame')
     args=parser.parse_args(argv)
     try:
         state=None; recipe=None
@@ -270,7 +293,9 @@ def main(argv=None):
         if not Path(rom).is_file(): raise ValueError('ROM not found: '+rom)
         if Path(rom).read_bytes()[:4]!=bytes.fromhex('80371240'): raise ValueError('expected a big-endian .z64 ROM')
         identity=validate_state(state,rom)
+        refs=load_references(args,events)
         plan={'version':1,'rom':rom,'rom_sha1':digest(rom),'state':state,'state_sha1':digest(state) if state else None,'state_identity':identity,'recipe':recipe,'events':events,'end_frame':end,'timeout_seconds':timeout,'frame_units':'rendered_frames','wallclock_utc':dt.datetime.now(dt.timezone.utc).isoformat()}
+        if refs: plan['references']={k:{x:v[x] for x in v if x!='_image'} for k,v in refs.items()}
         if args.dry_run: print(json.dumps(plan,indent=2)); return 0
         root=Path(os.environ.get('SSSV_TEST_DIR',ROOT)).resolve(); now=dt.datetime.now(); parent=root/'captures'/now.strftime('%Y-%m-%d'); parent.mkdir(parents=True,exist_ok=True)
         run=Path(tempfile.mkdtemp(prefix=now.strftime('%H%M%S-'),dir=parent)); plan['run_dir']=str(run); planpath=run/'plan.json'; planpath.write_text(json.dumps(plan,indent=2))
@@ -286,8 +311,12 @@ def main(argv=None):
         if result['status'] in ('capture_complete','capture_invalid'):
             for saved in result.get('saved_states',[]):
                 Path(saved+'.json').write_text(json.dumps({'rom_sha1':plan['rom_sha1'],'rom':rom,'state_sha1':digest(saved),'origin':'cold_boot' if not state else 'loaded_state','source_state':state},indent=2))
+        if refs and result['status']=='capture_complete':
+            result['semantic_pass'],result['semantic']=semantic.evaluate(result.get('captures',[]),refs)
+            if result['semantic_pass'] is False: result['status']='semantic_mismatch'
+        elif refs: result['semantic']={'skipped':'capture did not complete; no comparison made'}
         (run/'summary.json').write_text(json.dumps(result,indent=2)); print(json.dumps(result,indent=2))
-        return 0 if result['status']=='capture_complete' else 1
+        return {'capture_complete':0,'semantic_mismatch':2}.get(result['status'],1)
     except (ValueError,KeyError,OSError,TypeError,AttributeError) as e: parser.error(str(e))
 
 if __name__=='__main__': sys.exit(main())
