@@ -39,7 +39,7 @@ fading at frame 180. Three independent cold boots returned `capture_pass: true`,
 | 180 | `f023f2b69789804c7299c355c02b680e445fb713` | `515243e3ab3e75d8acdc8a2ecc54fac59a733cc7` |
 
 These hashes are observations on this backend, not acceptance requirements for
-other renderers. `semantic_pass` remains null. This scene checks capture
+other renderers. `semantic_pass` remains null unless references are supplied. This scene checks capture
 reliability; it does not validate gameplay, state compatibility, or patched
 geometry. Plans, logs, isolated settings, PNGs, and results remain in the
 git-ignored `captures/` tree.
@@ -53,3 +53,15 @@ state and matching provenance sidecar were saved. This was one route run, not a
 repeatability claim. Rice printed a shader compilation diagnostic during the
 route outside the core error callback; visual artifacts remain possible even
 when `capture_pass` is true. State replay and patched geometry were not validated.
+
+## Reference comparison
+
+With `--reference`/`--reference-file` (see the README), `semantic_pass` becomes
+true or false from a coarse luma-grid and dHash comparison against a private
+reference image; with none it stays null. A false result reports
+`semantic_mismatch`, exits 2 and keeps the captures. The metric detects gross
+scene change or drift on one backend. It is not scene recognition: a reference
+of the wrong scene would pass against itself, small but real defects can hide
+inside the tolerances, and changed renderers or resolutions may need new
+references. It is covered by synthetic-image tests only; no real-scene
+validation has been performed with it.

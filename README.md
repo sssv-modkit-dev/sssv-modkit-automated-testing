@@ -58,7 +58,7 @@ checkpoint is dimmer as the scene fades. Inspect both images when calibrating a
 new ROM/backend. Repeat the command to compare each checkpoint's `rgb_sha1` in
 `summary.json`; compare the same frame across runs, not frame 120 against 180.
 Hashes are evidence of repeatability on the same setup, not portable scene
-recognition. `semantic_pass` remains null.
+recognition. `semantic_pass` remains null unless you supply references (below).
 
 The stock US 1.0 ROM was verified with three independent cold boots on the
 development Rice/Mesa backend: both checkpoints were nonblack and byte-identical
@@ -100,6 +100,31 @@ Recipes permit wait, press, capture, and save_state actions. They cannot execute
 shell commands, reset, or load states mid-run. `ready: true` enables execution;
 it does not assert the captured scene is correct. Use `--dry-run` to review the
 schedule without starting the core or creating a capture directory.
+
+## Optional reference comparison
+
+Name a private reference PNG per capture label to get a `semantic_pass`:
+
+```sh
+./run_recipe.sh recipes/known-scene.json --rom /path/to/sssv.z64   --reference copyright_120=/private/ref/copyright_120.png --ref-roi 0 0 1 0.9
+./capture_rom.sh 120f --reference-file /private/ref/refs.json
+```
+
+`refs.json` maps a label to a path or to `{path, mode, tolerance, hash_tolerance, roi}`
+(`capture_rom.sh` uses the label `capture`). Keep references and this file outside
+the repository. Without references `semantic_pass` stays null and no comparison runs.
+Bad references, wrong labels or unsupported PNGs fail before the emulator starts.
+
+Both images are reduced to luma on a coarse grid. `luma` is the mean absolute
+difference of a 32x24 grid (0-255, default tolerance 12); `dhash` is the Hamming
+distance of a 64-bit difference hash (default tolerance 10); the default mode
+`both` needs both. `roi` is a `[x0,y0,x1,y1]` fraction box; pixels outside it,
+such as a HUD, are ignored. The decoder reads only 8-bit non-interlaced RGB PNGs, like
+the harness writes, and rejects others. Metrics go under `semantic` in `summary.json`.
+A mismatch sets `semantic_pass: false`, status `semantic_mismatch` and exit code 2,
+and keeps all evidence. A pass means "similar to your reference", not that
+the scene, actor or geometry is correct; the reference's own correctness is yours
+to establish. Reference PNGs must have the same top-to-bottom orientation as the harness's own captures.
 
 ## Generate routes to other stages
 
@@ -145,7 +170,7 @@ existing cold boot, explicit debug states, provenance, and validation limits.
 ## Evidence and save states
 
 Runs contain a plan with ROM/state hashes, an emulator log, PNGs, and result/summary
-JSON. A completed run reports `semantic_pass: null`: inspect the screenshots or
+JSON. A completed run without references reports `semantic_pass: null`: inspect the screenshots or
 perform a separate RAM check to establish the intended scene and geometry.
 `capture_pass: true` means PNGs were produced with nonblack pixels and no core
 errors; it does not establish scene correctness. Core errors, missing captures,
@@ -167,7 +192,7 @@ Captures, logs, states, local inputs, and emulator settings stay private.
 ## Development and license
 
 ```sh
-python3 -m unittest -v test_harness test_stage_routes test_inspection
+python3 -m unittest -v test_harness test_stage_routes test_inspection test_semantic
 bash -n capture_rom.sh run_recipe.sh
 ```
 
