@@ -25,7 +25,7 @@ Stage IDs start at 1. Some examples:
 | 6 | Fat Bear Mountain |
 | 7 | Rocky Hard Place |
 
-Recipes capture the mission brief and initial spawn. Add `--diagnostic` for a
+Recipes for standard stages capture the mission brief (`mission_brief`) and initial spawn (`spawn`). Special stages (`11`, `17`, `23`, `31`, `32` — vehicle, HUD-less, or cutscene flows) skip the standard briefing gate, so generated recipes tag `stage_flow: "special"`, advance with `A` instead of `START` (which can pause), and capture `post_select` + `spawn`. Add `--diagnostic` for a
 selector screenshot. Earlier calibration captures are replaced with neutral
 waits of the same length to preserve the input schedule. Keep the intro waits:
 shortening them previously sent inputs during cutscenes. The generator refuses
