@@ -22,9 +22,15 @@ class StageRouteTests(unittest.TestCase):
                 self.assertEqual(ring[pos], sid)
                 self.assertLessEqual(len(recipe['route']['selector_inputs']), len(ring) // 2)
                 events, end = harness.compile_recipe(recipe)
-                self.assertEqual([e['label'] for e in events if e['action'] == 'capture'],
-                                 ['mission_brief', 'spawn'])
+                expected = ['post_select', 'spawn'] if sid in routes.SPECIAL_STAGES else ['mission_brief', 'spawn']
+                self.assertEqual([e['label'] for e in events if e['action'] == 'capture'], expected)
                 self.assertTrue(recipe['cold_boot_only'])
+                if sid in routes.SPECIAL_STAGES:
+                    self.assertEqual(recipe['route']['stage_flow'], 'special')
+                    self.assertEqual(recipe['route']['special_kind'], routes.SPECIAL_STAGES[sid])
+                else:
+                    self.assertEqual(recipe['route']['stage_flow'], 'standard')
+                    self.assertNotIn('special_kind', recipe['route'])
 
     def test_known_selector_offsets_and_wrap(self):
         self.assertEqual(routes.make_recipe(3, self.template)['route']['selector_inputs'], ['DPAD_RIGHT'] * 2)
@@ -38,6 +44,14 @@ class StageRouteTests(unittest.TestCase):
         for sid in (0, 33, True):
             with self.assertRaises(ValueError):
                 routes.make_recipe(sid, self.template)
+
+    def test_special_stages_skip_brief_and_avoid_start_after_menu(self):
+        for sid, kind in routes.SPECIAL_STAGES.items():
+            recipe = routes.make_recipe(sid, self.template)
+            tail = recipe['steps'][-4:]
+            self.assertEqual([s['action'] for s in tail], ['press', 'capture', 'press', 'capture'])
+            self.assertFalse(any('START' in s.get('buttons', []) for s in tail))
+            self.assertEqual(recipe['route']['special_kind'], kind)
 
     def test_calibrated_bootstrap_button_schedule_preserved(self):
         original, _ = harness.compile_recipe(self.template)
